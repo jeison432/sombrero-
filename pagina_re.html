@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>El Alma del Sombrero Vueltiao</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            /* Fondo inspirado en los tonos tierra y el amanecer del caribe sabanero */
+            background: radial-gradient(circle, #1a1105 0%, #080502 100%);
+        }
+
+        /* Pantalla de Inicio */
+        #welcome-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle, #2c1d0b 0%, #080502 100%);
+            transition: opacity 1s ease-in-out;
+        }
+
+        .title {
+            color: #f4e1c1;
+            font-size: 2.8rem;
+            letter-spacing: 4px;
+            margin-bottom: 10px;
+            text-align: center;
+            text-shadow: 0 0 15px rgba(244, 225, 193, 0.4);
+        }
+
+        .subtitle {
+            color: #d4af37;
+            font-size: 1.2rem;
+            margin-bottom: 30px;
+            letter-spacing: 2px;
+        }
+
+        .btn-start {
+            padding: 12px 35px;
+            font-size: 1.1rem;
+            color: #080502;
+            background: linear-gradient(45deg, #f4e1c1, #d4af37);
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            box-shadow: 0 0 15px rgba(212, 175, 55, 0.4);
+            transition: transform 0.2s, box-shadow 0.2s;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+
+        .btn-start:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 25px rgba(244, 225, 193, 0.7);
+        }
+
+        /* Contenedor de las Tarjetas Informativas */
+        .card-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            width: 340px;
+            background: rgba(15, 10, 5, 0.9);
+            border: 2px solid #d4af37;
+            border-radius: 15px;
+            padding: 25px;
+            color: #f4e1c1;
+            text-align: center;
+            z-index: 5;
+            box-shadow: 0 0 30px rgba(212, 175, 55, 0.3);
+            backdrop-filter: blur(10px);
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .card-container.active {
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        .card-title {
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            color: #d4af37;
+            text-shadow: 0 0 10px rgba(212, 175, 55, 0.5);
+        }
+
+        .card-text {
+            font-size: 1rem;
+            line-height: 1.6;
+            margin-bottom: 20px;
+            color: #e0d0b8;
+        }
+
+        .btn-close {
+            padding: 8px 20px;
+            background: #1a1105;
+            border: 1px solid #d4af37;
+            color: #f4e1c1;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+        }
+
+        .btn-close:hover {
+            background: #d4af37;
+            color: #080502;
+        }
+
+        /* Canvas de Three.js */
+        #canvas3d {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* Interfaz de usuario superior */
+        #ui-layer {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            text-align: center;
+            color: #f4e1c1;
+            z-index: 2;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 1s ease;
+        }
+        
+        #ui-layer h2 {
+            font-size: 1.4rem;
+            letter-spacing: 3px;
+            text-shadow: 0 0 8px #d4af37;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+    <div id="welcome-screen">
+        <h1 class="title">SOMBRERO VUELTIAO</h1>
+        <p class="subtitle">Tejido de Tradición Colombiana</p>
+        <button class="btn-start" onclick="startExperience()">Descubrir el tejido</button>
+    </div>
+
+    <div id="ui-layer">
+        <h2>LAS VUELTAS DEL SOMBRERO</h2>
+        <p style="font-size: 0.8rem; color: #b5a386; margin-top: 5px;">Arrastra para rotar | Explora los elementos del tejido</p>
+    </div>
+
+    <div id="card" class="card-container">
+        <h3 id="card-title" class="card-title">Título</h3>
+        <p id="card-text" class="card-text">Contenido...</p>
+        <button class="btn-close" onclick="closeCard()">Cerrar</button>
+    </div>
+
+    <canvas id="canvas3d"></canvas>
+
+    <script>
+        let scene, camera, renderer, hatBeating, crownParticles;
+        let interactiveObjects = [];
+        let raycaster, mouse;
+        let isMovingCam = false;
+
+        // Datos culturales del Sombrero Vueltiao para las esferas interactivas
+        const messages = [
+            { title: "La Caña Flecha", text: "Es la planta sagrada extraída de las riberas de los ríos cordobeses y sucreños. Tras un proceso artesanal de raspado y secado al sol, se convierte en la fibra base para el trenzado.", color: 0xe6dfcc },
+            { title: "El Trenzado", text: "El número de fibras determina la finura del sombrero. Los hay de 15, 19, 21, 23 y hasta 27 vueltas. Entre más hilos tenga la trenza, más flexible, suave y costoso es.", color: 0x222222 },
+            { title: "Las Pintas", text: "Los dibujos geométricos del sombrero no son azarosos; representan elementos de la naturaleza, la fauna y la cosmogonía de la cultura zenú, como el ojo de la sapa o la flor de la caña.", color: 0xd4af37 },
+            { title: "Símbolo Cultural", text: "Declarado Símbolo Cultural de la Nación. Es una obra maestra de ingeniería artesanal que lleva impresa la identidad, el sudor y la historia del pueblo colombiano.", color: 0xc19a6b }
+        ];
+
+        function init3D() {
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x080502, 0.015);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 0, 300); // Inicia lejos para el zoom de entrada
+
+            renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas3d'), antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+
+            createHatStructure();
+            createInteractiveNodes();
+
+            // Iluminación cálida
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambientLight);
+
+            const warmLight = new THREE.DirectionalLight(0xffecc4, 1.5);
+            warmLight.position.set(10, 20, 10);
+            scene.add(warmLight);
+
+            window.addEventListener('resize', onWindowResize);
+            window.addEventListener('click', onCanvasClick);
+            window.addEventListener('mousemove', onMouseMove);
+        }
+
+        // --- ESTRUCTURA DEL SOMBRERO (ALAS Y COPA) ---
+        function createHatStructure() {
+            const particleCount = 12000;
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(particleCount * 3);
+            const colors = new Float32Array(particleCount * 3);
+
+            const colorKhaki = new THREE.Color('#ded1b8'); // Caña flecha natural
+            const colorBlack = new THREE.Color('#0c0a07'); // Fibra tinturada de negro
+
+            for (let i = 0; i < particleCount; i++) {
+                // Generamos círculos concéntricos muy juntos para simular las costuras/vueltas
+                const r = Math.random() * 40; 
+                const angle = Math.random() * Math.PI * 2;
+
+                let x = Math.cos(angle) * r;
+                let z = Math.sin(angle) * r;
+                let y = 0;
+
+                // Modelado de la Copa en el centro (r < 12)
+                if (r < 12) {
+                    // Crea una elevación cilíndrica decreciente con tapa plana
+                    y = Math.cos((r / 12) * Math.PI * 0.5) * 12; 
+                } else if (r > 25) {
+                    // Curvatura suave hacia arriba en el borde del ala del sombrero
+                    y = Math.pow((r - 25) / 15, 2) * 3;
+                }
+
+                positions[i * 3] = x;
+                positions[i * 3 + 1] = y;
+                positions[i * 3 + 2] = z;
+
+                // Patrón trenzado: Alternar franjas concéntricas blancas y negras (Sello Vueltiao)
+                // Usamos la matemática del radio para generar los anillos perfectos
+                const ringIndex = Math.floor(r * 1.5); 
+                const isBlackRing = ringIndex % 2 === 0;
+
+                // Añadir un pequeño ruido para simular la textura imperfecta de la fibra natural
+                const finalColor = isBlackRing ? colorBlack.clone() : colorKhaki.clone();
+                if(!isBlackRing && Math.random() > 0.7) {
+                     finalColor.multiplyScalar(0.8); // Sombras en la caña flecha
+                }
+
+                colors[i * 3] = finalColor.r;
+                colors[i * 3 + 1] = finalColor.g;
+                colors[i * 3 + 2] = finalColor.b;
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            const material = new THREE.PointsMaterial({
+                size: 0.28,
+                vertexColors: true,
+                transparent: true
+            });
+
+            hatBeating = new THREE.Points(geometry, material);
+            // Inclinar el sombrero levemente hacia el frente para apreciarlo mejor
+            hatBeating.rotation.x = 0.4;
+            hatBeating.rotation.z = 0.1;
+            scene.add(hatBeating);
+        }
+
+        // --- ELEMENTOS INTERACTIVOS (ORBITAS CULTURALES) ---
+        function createInteractiveNodes() {
+            messages.forEach((data, index) => {
+                // Esferas estilizadas que representan los núcleos de información
+                const geo = new THREE.SphereGeometry(1.4, 32, 32);
+                const mat = new THREE.MeshPhongMaterial({
+                    color: data.color,
+                    shininess: 80,
+                    bumpScale: 0.05
+                });
+                
+                const mesh = new THREE.Mesh(geo, mat);
+                
+                // Distribución radial alrededor del sombrero vueltiao
+                const angle = (index / messages.length) * Math.PI * 2;
+                mesh.position.x = Math.cos(angle) * 28;
+                mesh.position.z = Math.sin(angle) * 28;
+                mesh.position.y = 4;
+
+                mesh.userData = { title: data.title, text: data.text };
+                
+                interactiveObjects.push(mesh);
+                scene.add(mesh);
+            });
+        }
+
+        // --- CICLO DE ANIMACIÓN ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const time = Date.now() * 0.001;
+
+            // Rotación sutil y constante del sombrero
+            if (hatBeating) {
+                hatBeating.rotation.y = time * 0.05;
+            }
+
+            // Flotación de los nodos interactivos
+            interactiveObjects.forEach((obj, i) => {
+                obj.position.y = 2 + Math.sin(time * 1.5 + i) * 0.7;
+                obj.rotation.x += 0.005;
+                obj.rotation.y += 0.01;
+            });
+
+            // Transición cinematográfica inicial de la cámara
+            if (isMovingCam) {
+                camera.position.z += (50 - camera.position.z) * 0.03;
+                camera.position.y += (35 - camera.position.y) * 0.03;
+                camera.lookAt(0, 4, 0);
+
+                if (Math.abs(camera.position.z - 50) < 0.5) {
+                    isMovingCam = false;
+                }
+            } else if (camera.position.z < 120) {
+                // Órbita pasiva controlada alrededor del sombrero
+                camera.position.x = Math.sin(time * 0.03) * 50;
+                camera.position.z = Math.cos(time * 0.03) * 50;
+                camera.lookAt(0, 4, 0);
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // --- CONTROLADORES DE EVENTOS ---
+        function startExperience() {
+            document.getElementById('welcome-screen').style.opacity = '0';
+            setTimeout(() => {
+                document.getElementById('welcome-screen').style.display = 'none';
+                document.getElementById('ui-layer').style.opacity = '1';
+            }, 1000);
+
+            isMovingCam = true;
+        }
+
+        function onMouseMove(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        }
+
+        function onCanvasClick() {
+            if (document.getElementById('welcome-screen').style.display === '') return;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(interactiveObjects);
+
+            if (intersects.length > 0) {
+                const clickedNode = intersects[0].object;
+                
+                document.getElementById('card-title').innerText = clickedNode.userData.title;
+                document.getElementById('card-text').innerText = clickedNode.userData.text;
+                
+                document.getElementById('card').classList.add('active');
+            }
+        }
+
+        function closeCard() {
+            document.getElementById('card').classList.remove('active');
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        init3D();
+        animate();
+    </script>
+</body>
+</html>
